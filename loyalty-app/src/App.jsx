@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-route
 import { AnimatePresence } from 'framer-motion';
 import MobileContainer from './components/layout/MobileContainer';
 import BottomNav from './components/layout/BottomNav';
+import ScrollToTop from './components/layout/ScrollToTop';
 
 import Home from './pages/Home';
 import Earn from './pages/Earn';
@@ -30,6 +31,7 @@ const AnimatedRoutes = () => {
 function App() {
   return (
     <Router>
+      <ScrollToTop />
       <MobileContainer>
         <div className="pb-20 min-h-screen">
           <AnimatedRoutes />

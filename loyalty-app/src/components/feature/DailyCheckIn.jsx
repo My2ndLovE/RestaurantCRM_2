@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Check, Gift } from 'lucide-react';
 import { motion } from 'framer-motion';
+import AnimatedIcon from './AnimatedIcon';
 
 const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
@@ -61,9 +62,16 @@ const DailyCheckIn = () => {
                 </button>
             )}
             {checkedIn && (
-                <div className="w-full bg-green-100 text-green-700 font-bold py-2 rounded-xl text-sm text-center">
-                    Bonus Claimed! Come back tomorrow.
-                </div>
+                <motion.div
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="w-full bg-green-100 text-green-700 font-bold py-2 rounded-xl text-sm text-center flex items-center justify-center space-x-2"
+                >
+                    <AnimatedIcon animation="bounce" size="sm">
+                        <Check size={16} className="text-green-700" />
+                    </AnimatedIcon>
+                    <span>Bonus Claimed! Come back tomorrow.</span>
+                </motion.div>
             )}
         </div>
     );

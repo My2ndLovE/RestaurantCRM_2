@@ -1,14 +1,24 @@
 import React, { useState } from 'react';
 import { activeOffers } from '../data/mockData';
+import RedeemModal from '../components/feature/RedeemModal';
 import SuccessAnimation from '../components/feature/SuccessAnimation';
 import successData from '../assets/lottie/success.json';
+import { AnimatePresence } from 'framer-motion';
 
 const Rewards = () => {
-    const [redeemedItem, setRedeemedItem] = useState(null);
+    const [selectedOffer, setSelectedOffer] = useState(null);
+    const [showSuccess, setShowSuccess] = useState(false);
 
-    const handleRedeem = (item) => {
-        // In real app, check points balance first
-        setRedeemedItem(item);
+    const handleRedeemClick = (offer) => {
+        setSelectedOffer(offer);
+    };
+
+    const confirmRedeem = () => {
+        setSelectedOffer(null);
+        // Simulate API call
+        setTimeout(() => {
+            setShowSuccess(true);
+        }, 300);
     };
 
     return (
@@ -30,8 +40,8 @@ const Rewards = () => {
                             <div className="flex justify-between items-end mt-2">
                                 <span className="font-bold text-brand-red">{offer.pointsCost > 0 ? `${offer.pointsCost} Pts` : 'Free'}</span>
                                 <button
-                                    onClick={() => handleRedeem(offer)}
-                                    className="bg-brand-red text-white text-xs font-bold py-2 px-4 rounded-lg active:scale-95 transition-transform shadow-md"
+                                    onClick={() => handleRedeemClick(offer)}
+                                    className="bg-brand-red text-white text-xs font-bold py-2 px-4 rounded-lg active:scale-95 transition-transform shadow-md hover:bg-brand-red/90"
                                 >
                                     Redeem
                                 </button>
@@ -41,12 +51,22 @@ const Rewards = () => {
                 ))}
             </div>
 
-            {redeemedItem && (
+            <AnimatePresence>
+                {selectedOffer && (
+                    <RedeemModal
+                        offer={selectedOffer}
+                        onClose={() => setSelectedOffer(null)}
+                        onConfirm={confirmRedeem}
+                    />
+                )}
+            </AnimatePresence>
+
+            {showSuccess && (
                 <SuccessAnimation
                     animationData={successData}
                     message="Redeemed!"
-                    subMessage={`Enjoy your ${redeemedItem.title}. Show this to staff.`}
-                    onComplete={() => setRedeemedItem(null)}
+                    subMessage="Enjoy your reward. Show this to the staff."
+                    onComplete={() => setShowSuccess(false)}
                 />
             )}
         </div>
