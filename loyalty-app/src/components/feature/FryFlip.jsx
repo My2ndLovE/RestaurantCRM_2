@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 const FryFlip = ({ onSpinComplete }) => {
     const [gameState, setGameState] = useState('ready');
     const [streak, setStreak] = useState(0);
+    const [score, setScore] = useState(0);
+    const [lives, setLives] = useState(3);
     const [barPosition, setBarPosition] = useState(0);
     const [direction, setDirection] = useState(1);
     const [perfectZoneSize, setPerfectZoneSize] = useState(20);
@@ -14,6 +16,7 @@ const FryFlip = ({ onSpinComplete }) => {
     const animationRef = useRef(null);
     const directionRef = useRef(1);
     const speedRef = useRef(2);
+    const scoreRef = useRef(0);
 
     useEffect(() => {
         directionRef.current = direction;
@@ -43,6 +46,10 @@ const FryFlip = ({ onSpinComplete }) => {
         };
     }, [gameState]);
 
+    useEffect(() => {
+        scoreRef.current = score;
+    }, [score]);
+
     const getRandomCenter = (size) => {
         const margin = size;
         return Math.random() * (100 - margin * 2) + margin;
@@ -51,6 +58,8 @@ const FryFlip = ({ onSpinComplete }) => {
     const startGame = () => {
         setGameState('playing');
         setStreak(0);
+        setScore(0);
+        setLives(3);
         setCombo(0);
         setBarPosition(0);
         setDirection(1);
@@ -83,32 +92,43 @@ const FryFlip = ({ onSpinComplete }) => {
         setTimeout(() => setLastResult(null), 600);
 
         if (result === 'miss') {
-            endGame();
-        } else {
-            const newStreak = streak + 1;
-            setStreak(newStreak);
-
-            let nextZoneSize = perfectZoneSize;
-            if (newStreak % 3 === 0) {
-                nextZoneSize = Math.max(8, perfectZoneSize - 2);
-                setPerfectZoneSize(nextZoneSize);
-                setSpeed(prev => Math.min(5, prev + 0.3));
-            }
-
-            setTargetCenter(getRandomCenter(nextZoneSize));
+            setCombo(0);
+            setStreak(0);
+            setLives(prev => {
+                const next = Math.max(0, prev - 1);
+                if (next === 0) {
+                    setTimeout(() => endGame(), 400);
+                } else {
+                    setTargetCenter(getRandomCenter(perfectZoneSize));
+                }
+                return next;
+            });
+            return;
         }
+
+        const newStreak = streak + 1;
+        setStreak(newStreak);
+        setScore(prev => prev + 10);
+
+        let nextZoneSize = perfectZoneSize;
+        if (newStreak % 3 === 0) {
+            nextZoneSize = Math.max(8, perfectZoneSize - 2);
+            setPerfectZoneSize(nextZoneSize);
+            setSpeed(prev => Math.min(5, prev + 0.3));
+        }
+
+        setTargetCenter(getRandomCenter(nextZoneSize));
     };
 
     const endGame = () => {
         if (gameState === 'finished') return;
         setGameState('finished');
         if (animationRef.current) cancelAnimationFrame(animationRef.current);
-        const score = streak * 10;
         setTimeout(() => {
             onSpinComplete({
                 type: 'points',
-                value: score,
-                label: `${score} Points! (${streak} streak)`
+                value: scoreRef.current,
+                label: `${scoreRef.current} Points! (${Math.max(0, Math.round(scoreRef.current / 10))} hits)`
             });
         }, 1000);
     };
@@ -127,7 +147,7 @@ const FryFlip = ({ onSpinComplete }) => {
                 >
                     <h2 className="text-2xl sm:text-3xl font-bold text-brand-text mb-3 sm:mb-4">Fry Flip!</h2>
                     <p className="text-sm sm:text-base text-gray-600 mb-2">Tap when the bar hits the green zone</p>
-                    <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">One miss = game over!</p>
+                    <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">You have 3 lives — keep flipping!</p>
                     <button
                         onClick={startGame}
                         className="bg-brand-yellow text-white font-bold py-3 sm:py-4 px-8 sm:px-12 rounded-full shadow-xl hover:bg-yellow-500 transition-all active:scale-95 text-sm sm:text-base"
@@ -144,10 +164,18 @@ const FryFlip = ({ onSpinComplete }) => {
                     className="w-full max-w-md px-2"
                 >
                     {/* Stats */}
-                    <div className="flex gap-3 sm:gap-4 mb-4 sm:mb-6 justify-center">
+                    <div className="flex gap-3 sm:gap-4 mb-4 sm:mb-6 justify-center flex-wrap">
                         <div className="bg-white px-4 sm:px-7 py-3 rounded-2xl shadow-md border border-orange-100">
                             <div className="text-xs sm:text-sm text-gray-500">Streak</div>
                             <div className="font-bold text-xl sm:text-2xl text-brand-yellow">{streak} 🔥</div>
+                        </div>
+                        <div className="bg-white px-4 sm:px-6 py-3 rounded-2xl shadow-md border border-red-100 flex items-center gap-2">
+                            <div className="text-xs sm:text-sm text-gray-500">Lives</div>
+                            <div className="font-bold text-xl sm:text-2xl text-brand-red">{lives} ❤️</div>
+                        </div>
+                        <div className="bg-white px-4 sm:px-6 py-3 rounded-2xl shadow-md border border-green-100 flex items-center gap-2">
+                            <div className="text-xs sm:text-sm text-gray-500">Score</div>
+                            <div className="font-bold text-xl sm:text-2xl text-green-600">{score}</div>
                         </div>
                         {combo > 0 && (
                             <motion.div
@@ -260,9 +288,12 @@ const FryFlip = ({ onSpinComplete }) => {
                     <h2 className="text-2xl sm:text-3xl font-bold text-brand-text mb-3 sm:mb-4">
                         {streak >= 20 ? 'Amazing!' : streak >= 10 ? 'Great Job!' : 'Good Try!'}
                     </h2>
-                    <p className="text-lg sm:text-xl text-gray-600 mb-4 sm:mb-6">
-                        Final Streak: <span className="font-bold text-brand-yellow">{streak}</span> 🔥
-                    </p>
+                    <div className="text-lg sm:text-xl text-gray-600 mb-2 sm:mb-3">
+                        Score: <span className="font-bold text-green-600">{score}</span>
+                    </div>
+                    <div className="text-base sm:text-lg text-gray-500 mb-4 sm:mb-6">
+                        Lives used: <span className="font-semibold text-brand-red">{3 - lives}</span>
+                    </div>
                     <button
                         onClick={startGame}
                         className="bg-brand-yellow text-white font-bold py-3 sm:py-4 px-8 sm:px-12 rounded-full shadow-xl hover:bg-yellow-500 transition-all active:scale-95 text-sm sm:text-base"

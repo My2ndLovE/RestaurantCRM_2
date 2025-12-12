@@ -56,6 +56,9 @@ const NuggetPopCatch = ({ onSpinComplete }) => {
     const handleMove = (e) => {
         if (gameState !== 'playing' || !gameAreaRef.current) return;
 
+        if (e.cancelable) {
+            e.preventDefault();
+        }
         const rect = gameAreaRef.current.getBoundingClientRect();
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const x = clientX - rect.left;
@@ -286,6 +289,7 @@ const NuggetPopCatch = ({ onSpinComplete }) => {
                         onMouseMove={handleMove}
                         onTouchMove={handleMove}
                         className="relative w-full h-[420px] sm:h-[520px] rounded-3xl overflow-hidden border-4 border-white shadow-2xl bg-gradient-to-b from-sky-200 via-blue-100 to-purple-100"
+                        style={{ touchAction: 'none' }}
                     >
                         <div className="absolute inset-x-6 top-0 h-40 bg-gradient-to-b from-white/60 to-transparent blur-3xl pointer-events-none" />
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.6),transparent_50%)]" />
@@ -371,7 +375,7 @@ const NuggetPopCatch = ({ onSpinComplete }) => {
                         <motion.div
                             className="absolute bottom-2 sm:bottom-4 flex flex-col items-center"
                             animate={{ left: `${basketPosition}%` }}
-                            transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                            transition={{ type: 'tween', duration: 0.08, ease: 'linear' }}
                             style={{ transform: 'translateX(-50%)' }}
                         >
                             <motion.div

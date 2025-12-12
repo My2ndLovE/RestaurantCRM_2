@@ -123,9 +123,9 @@ const SauceSprint = ({ onSpinComplete }) => {
     }, []);
 
     const changeLane = (newLane) => {
-        if (gameState === 'playing' && newLane >= 0 && newLane < LANES) {
-            setPlayerLane(newLane);
-        }
+        if (gameState !== 'playing') return;
+        const nextLane = Math.min(LANES - 1, Math.max(0, newLane));
+        setPlayerLane(nextLane);
     };
 
     const handleTouchStart = (e) => {
@@ -152,6 +152,18 @@ const SauceSprint = ({ onSpinComplete }) => {
         }
 
         touchStartRef.current = null;
+    };
+
+    const handleTouchMove = (e) => {
+        if (gameState !== 'playing' || !gameAreaRef.current) return;
+        const touch = e.changedTouches?.[0];
+        if (!touch) return;
+        if (e.cancelable) e.preventDefault();
+        const rect = gameAreaRef.current.getBoundingClientRect();
+        const relativeX = touch.clientX - rect.left;
+        const laneWidth = rect.width / LANES;
+        const lane = Math.floor(relativeX / laneWidth);
+        changeLane(lane);
     };
 
     const startGame = () => {
@@ -242,7 +254,9 @@ const SauceSprint = ({ onSpinComplete }) => {
                         ref={gameAreaRef}
                         onTouchStart={handleTouchStart}
                         onTouchEnd={handleTouchEnd}
+                        onTouchMove={handleTouchMove}
                         className="relative w-full h-[420px] sm:h-[500px] bg-gradient-to-b from-gray-700 via-gray-800 to-gray-900 rounded-2xl sm:rounded-3xl overflow-hidden shadow-xl border-2 sm:border-4 border-white"
+                        style={{ touchAction: 'none' }}
                     >
                         {/* Flash */}
                         <AnimatePresence>
@@ -335,7 +349,7 @@ const SauceSprint = ({ onSpinComplete }) => {
                             animate={{
                                 left: `${getLaneXPosition(playerLane)}%`,
                             }}
-                            transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                            transition={{ type: 'tween', duration: 0.08, ease: 'linear' }}
                             style={{
                                 top: '80%',
                                 transform: 'translate(-50%, -50%)',
