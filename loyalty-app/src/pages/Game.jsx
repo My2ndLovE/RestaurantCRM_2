@@ -1,21 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import WheelGame from '../components/feature/WheelGame';
 import ScratchCard from '../components/feature/ScratchCard';
+import SauceShuffle from '../components/feature/SauceShuffle';
+import NuggetPopCatch from '../components/feature/NuggetPopCatch';
+import ComboBuilder from '../components/feature/ComboBuilder';
+import FryFlip from '../components/feature/FryFlip';
+import SauceSprint from '../components/feature/SauceSprint';
+import TriviaBite from '../components/feature/TriviaBite';
 import SuccessAnimation from '../components/feature/SuccessAnimation';
 import successData from '../assets/lottie/success.json';
 import { motion } from 'framer-motion';
-import { ChevronLeft, Trophy, Dices, Gift } from 'lucide-react';
+import { ChevronLeft, Trophy, Dices, Gift, Zap, Brain, Timer, Package, Flame, CircleDollarSign } from 'lucide-react';
 import Leaderboard from '../components/feature/Leaderboard';
+import CoinDropPlinko from '../components/feature/CoinDropPlinko';
 
 const GAMES = [
     { id: 'wheel', name: 'Flavor Spin', description: 'Spin to win points & vouchers!', color: 'bg-brand-red', icon: Dices },
-    { id: 'scratch', name: 'Lucky Scratch', description: 'Scratch to reveal hidden prizes.', color: 'bg-brand-yellow', icon: Gift, comingSoon: false },
-    { id: 'quiz', name: 'Potato Trivia', description: 'Test your knowledge for bonus points.', color: 'bg-brand-brown', icon: Trophy, comingSoon: true },
+    { id: 'scratch', name: 'Lucky Scratch', description: 'Scratch to reveal hidden prizes.', color: 'bg-brand-yellow', icon: Gift },
+    { id: 'plinko', name: 'Coin Drop Plinko', description: 'Drop coins through pegs to score.', color: 'bg-emerald-600', icon: CircleDollarSign },
+    { id: 'shuffle', name: 'Sauce Shuffle', description: 'Match sauce pairs in this memory game.', color: 'bg-purple-500', icon: Brain },
+    { id: 'catch', name: 'Nugget Pop Catch', description: 'Catch falling nuggets, avoid trash!', color: 'bg-green-500', icon: Package },
+    { id: 'combo', name: 'Combo Builder', description: 'Build combos before time runs out!', color: 'bg-brand-brown', icon: Timer },
+    { id: 'flip', name: 'Fry Flip', description: 'Perfect timing for the perfect flip!', color: 'bg-yellow-500', icon: Flame },
+    { id: 'sprint', name: 'Sauce Sprint', description: 'Endless runner - dodge obstacles!', color: 'bg-red-600', icon: Zap },
+    { id: 'trivia', name: 'Trivia Bite', description: 'Quick food trivia challenge!', color: 'bg-indigo-600', icon: Trophy },
 ];
 
 const Game = () => {
     const [selectedGame, setSelectedGame] = useState(null);
     const [prize, setPrize] = useState(null);
+
+    // Scroll to top when a game is selected
+    useEffect(() => {
+        if (selectedGame) {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    }, [selectedGame]);
 
     const handleGameComplete = (result) => {
         setTimeout(() => {
@@ -91,6 +111,48 @@ const Game = () => {
                                 <p className="text-gray-500">Scratch the card to reveal your prize!</p>
                             </div>
                             <ScratchCard onComplete={handleGameComplete} />
+                        </div>
+                    )}
+
+                    {selectedGame === 'shuffle' && (
+                        <div className="p-4">
+                            <SauceShuffle onSpinComplete={handleGameComplete} />
+                        </div>
+                    )}
+
+                    {selectedGame === 'catch' && (
+                        <div className="p-4">
+                            <NuggetPopCatch onSpinComplete={handleGameComplete} />
+                        </div>
+                    )}
+
+                    {selectedGame === 'plinko' && (
+                        <div className="p-4">
+                            <CoinDropPlinko onSpinComplete={handleGameComplete} />
+                        </div>
+                    )}
+
+                    {selectedGame === 'combo' && (
+                        <div className="p-4">
+                            <ComboBuilder onSpinComplete={handleGameComplete} />
+                        </div>
+                    )}
+
+                    {selectedGame === 'flip' && (
+                        <div className="p-4">
+                            <FryFlip onSpinComplete={handleGameComplete} />
+                        </div>
+                    )}
+
+                    {selectedGame === 'sprint' && (
+                        <div className="p-4">
+                            <SauceSprint onSpinComplete={handleGameComplete} />
+                        </div>
+                    )}
+
+                    {selectedGame === 'trivia' && (
+                        <div className="p-4">
+                            <TriviaBite onSpinComplete={handleGameComplete} />
                         </div>
                     )}
                 </div>
