@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import GameWrapper from '../game-ui/GameWrapper';
+import GameHeader from '../game-ui/GameHeader';
+import GameOverlay from '../game-ui/GameOverlay';
+import GameButton from '../game-ui/GameButton';
+import { Brain } from 'lucide-react';
 
 const SAUCES = [
     { id: 'cheese', emoji: '🧀', name: 'Cheese' },
@@ -19,6 +24,7 @@ const SauceShuffle = ({ onSpinComplete }) => {
     const [matched, setMatched] = useState([]);
     const [moves, setMoves] = useState(0);
     const [startTime, setStartTime] = useState(null);
+    const hasClaimedRef = useRef(false);
     const movesRef = useRef(0);
     const pairCount = 8;
 
@@ -39,6 +45,7 @@ const SauceShuffle = ({ onSpinComplete }) => {
         setMoves(0);
         movesRef.current = 0;
         setStartTime(Date.now());
+        hasClaimedRef.current = false;
         setGameState('playing');
     };
 
@@ -69,70 +76,66 @@ const SauceShuffle = ({ onSpinComplete }) => {
         }
     };
 
-    const completeGame = () => {
-        setGameState('finished');
+    const handleComplete = () => {
         const timeTaken = Math.floor((Date.now() - startTime) / 1000);
         const finalMoves = movesRef.current;
-
         const basePoints = pairCount * 10;
         const timeBonus = Math.max(0, 60 - timeTaken);
         const moveBonus = Math.max(0, (pairCount * 2 - finalMoves) * 5);
         const totalScore = basePoints + timeBonus + moveBonus;
+        onSpinComplete({
+            type: 'points',
+            value: totalScore,
+            label: `${totalScore} Points! (${finalMoves} moves)`
+        });
+    };
 
-        setTimeout(() => {
-            onSpinComplete({
-                type: 'points',
-                value: totalScore,
-                label: `${totalScore} Points! (${finalMoves} moves, ${timeTaken}s)`
-            });
-        }, 500);
+    const autoClaimOnce = () => {
+        if (hasClaimedRef.current) return;
+        hasClaimedRef.current = true;
+        handleComplete();
+    };
+
+    const completeGame = () => {
+        autoClaimOnce();
+        setGameState('finished');
     };
 
     const isFlipped = (index) => flipped.includes(index) || matched.includes(index);
     const isMatched = (index) => matched.includes(index);
 
     return (
-        <div className="flex flex-col items-center justify-center p-3 sm:p-6 min-h-[500px]">
-            {gameState === 'ready' && (
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="text-center px-4"
-                >
-                    <h2 className="text-xl sm:text-2xl font-bold text-brand-text mb-3 sm:mb-4">Sauce Shuffle!</h2>
-                    <p className="text-sm sm:text-base text-gray-600 mb-2">Match pairs of sauce emojis on a 4x4 grid.</p>
-                    <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">Fewer moves = higher score!</p>
-                    <button
-                        onClick={startGame}
-                        className="bg-purple-500 text-white font-bold py-3 sm:py-4 px-8 sm:px-12 rounded-full shadow-xl hover:bg-purple-600 transition-all active:scale-95 text-sm sm:text-base"
-                    >
-                        START GAME
-                    </button>
-                </motion.div>
-            )}
+        <GameWrapper title="Sauce Shuffle">
+            <GameOverlay
+                isVisible={gameState === 'ready'}
+                title="Sauce Shuffle"
+                subtitle="Match pairs of sauce emojis! Fewer moves = higher score."
+                icon={Brain}
+                onPrimaryAction={startGame}
+                primaryActionText="START SHUFFLE"
+            />
+
+            <GameOverlay
+                isVisible={gameState === 'finished'}
+                type="gameover"
+                title="Perfect Match!"
+                subtitle={`Moves: ${moves}`}
+                icon={Brain}
+                onPrimaryAction={startGame}
+                primaryActionText="Play Again"
+            />
+
+            <GameHeader
+                stats={[
+                    { label: 'Moves', value: moves, color: 'brand-red' },
+                    { label: 'Pairs', value: `${matched.length / 2}/${pairCount}`, color: 'brand-yellow' },
+                ]}
+            />
 
             {gameState === 'playing' && cards.length > 0 && (
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="w-full max-w-md px-2"
-                >
-                    {/* Stats */}
-                    <div className="flex gap-2 sm:gap-4 justify-center mb-4 sm:mb-6">
-                        <div className="bg-white px-3 sm:px-6 py-2 sm:py-3 rounded-full shadow-md">
-                            <span className="text-xs sm:text-sm text-gray-500">Moves: </span>
-                            <span className="font-bold text-lg sm:text-xl text-brand-red">{moves}</span>
-                        </div>
-                        <div className="bg-white px-3 sm:px-6 py-2 sm:py-3 rounded-full shadow-md">
-                            <span className="text-xs sm:text-sm text-gray-500">Pairs: </span>
-                            <span className="font-bold text-lg sm:text-xl text-brand-yellow">{matched.length / 2}</span>
-                            <span className="text-gray-400">/{pairCount}</span>
-                        </div>
-                    </div>
-
-                    {/* Card Grid */}
+                <div className="w-full max-w-md mx-auto px-2">
                     <div
-                        className="grid gap-3 sm:gap-4 mb-4 sm:mb-6 mx-auto"
+                        className="grid gap-3 sm:gap-4 mb-6 mx-auto"
                         style={{
                             gridTemplateColumns: `repeat(4, 1fr)`,
                             maxWidth: '520px'
@@ -143,9 +146,8 @@ const SauceShuffle = ({ onSpinComplete }) => {
                                 key={card.uniqueId}
                                 onClick={() => handleCardClick(index)}
                                 disabled={isFlipped(index)}
-                                className="relative aspect-square rounded-lg sm:rounded-xl shadow-lg overflow-hidden disabled:cursor-default touch-manipulation"
+                                className="relative aspect-square rounded-xl shadow-lg cursor-pointer overflow-hidden disabled:cursor-default touch-manipulation transform transition-transform active:scale-95"
                                 whileHover={!isFlipped(index) ? { scale: 1.05 } : {}}
-                                whileTap={!isFlipped(index) ? { scale: 0.95 } : {}}
                             >
                                 <AnimatePresence mode="wait">
                                     {isFlipped(index) ? (
@@ -155,7 +157,9 @@ const SauceShuffle = ({ onSpinComplete }) => {
                                             animate={{ rotateY: 0 }}
                                             exit={{ rotateY: 90 }}
                                             transition={{ duration: 0.2 }}
-                                            className={`absolute inset-0 flex items-center justify-center text-3xl sm:text-5xl ${isMatched(index) ? 'bg-green-500' : 'bg-yellow-400'
+                                            className={`absolute inset-0 flex items-center justify-center text-3xl sm:text-5xl border-2 ${isMatched(index)
+                                                ? 'bg-green-100 border-green-300'
+                                                : 'bg-white border-brand-yellow'
                                                 }`}
                                         >
                                             {card.emoji}
@@ -167,9 +171,9 @@ const SauceShuffle = ({ onSpinComplete }) => {
                                             animate={{ rotateY: 0 }}
                                             exit={{ rotateY: 90 }}
                                             transition={{ duration: 0.2 }}
-                                            className="absolute inset-0 bg-red-500 flex items-center justify-center text-white text-2xl sm:text-4xl font-bold"
+                                            className="absolute inset-0 bg-brand-red flex items-center justify-center border-2 border-red-400"
                                         >
-                                            ?
+                                            <div className="text-white text-2xl font-bold opacity-50">?</div>
                                         </motion.div>
                                     )}
                                 </AnimatePresence>
@@ -177,38 +181,18 @@ const SauceShuffle = ({ onSpinComplete }) => {
                         ))}
                     </div>
 
-                    {/* Reset Button */}
                     <div className="text-center">
-                        <button
+                        <GameButton
                             onClick={startGame}
-                            className="bg-gray-600 text-white font-bold py-2 sm:py-3 px-6 sm:px-8 rounded-full shadow-lg hover:bg-gray-700 transition-all text-sm sm:text-base"
+                            variant="neutral"
+                            size="sm"
                         >
                             Reset Game
-                        </button>
+                        </GameButton>
                     </div>
-                </motion.div>
+                </div>
             )}
-
-            {gameState === 'finished' && (
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="text-center px-4"
-                >
-                    <div className="text-5xl sm:text-6xl mb-4">🎉</div>
-                    <h2 className="text-2xl sm:text-3xl font-bold text-brand-text mb-3 sm:mb-4">Perfect Match!</h2>
-                    <p className="text-lg sm:text-xl text-gray-600 mb-4 sm:mb-6">
-                        Completed in <span className="font-bold text-purple-600">{moves}</span> moves!
-                    </p>
-                    <button
-                        onClick={startGame}
-                        className="bg-purple-500 text-white font-bold py-3 sm:py-4 px-8 sm:px-12 rounded-full shadow-xl hover:bg-purple-600 transition-all active:scale-95 text-sm sm:text-base"
-                    >
-                        Play again
-                    </button>
-                </motion.div>
-            )}
-        </div>
+        </GameWrapper>
     );
 };
 

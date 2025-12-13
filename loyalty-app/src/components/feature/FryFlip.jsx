@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import GameWrapper from '../game-ui/GameWrapper';
+import GameHeader from '../game-ui/GameHeader';
+import GameOverlay from '../game-ui/GameOverlay';
+import GameButton from '../game-ui/GameButton';
+import { Flame } from 'lucide-react';
 
 const FryFlip = ({ onSpinComplete }) => {
     const [gameState, setGameState] = useState('ready');
@@ -13,10 +18,13 @@ const FryFlip = ({ onSpinComplete }) => {
     const [speed, setSpeed] = useState(2);
     const [lastResult, setLastResult] = useState(null);
     const [combo, setCombo] = useState(0);
+    const [isResolving, setIsResolving] = useState(false);
+    const hasClaimedRef = useRef(false);
     const animationRef = useRef(null);
     const directionRef = useRef(1);
     const speedRef = useRef(2);
     const scoreRef = useRef(0);
+    const isResolvingRef = useRef(false);
 
     useEffect(() => {
         directionRef.current = direction;
@@ -24,19 +32,25 @@ const FryFlip = ({ onSpinComplete }) => {
     }, [direction, speed]);
 
     useEffect(() => {
+        isResolvingRef.current = isResolving;
+    }, [isResolving]);
+
+    useEffect(() => {
         if (gameState === 'playing') {
             const animate = () => {
-                setBarPosition(prev => {
-                    let newPos = prev + directionRef.current * speedRef.current;
-                    if (newPos >= 100) {
-                        setDirection(-1);
-                        newPos = 100;
-                    } else if (newPos <= 0) {
-                        setDirection(1);
-                        newPos = 0;
-                    }
-                    return newPos;
-                });
+                if (!isResolvingRef.current) {
+                    setBarPosition(prev => {
+                        let newPos = prev + directionRef.current * speedRef.current;
+                        if (newPos >= 100) {
+                            setDirection(-1);
+                            newPos = 100;
+                        } else if (newPos <= 0) {
+                            setDirection(1);
+                            newPos = 0;
+                        }
+                        return newPos;
+                    });
+                }
                 animationRef.current = requestAnimationFrame(animate);
             };
             animationRef.current = requestAnimationFrame(animate);
@@ -50,6 +64,20 @@ const FryFlip = ({ onSpinComplete }) => {
         scoreRef.current = score;
     }, [score]);
 
+    const handleComplete = () => {
+        onSpinComplete({
+            type: 'points',
+            value: scoreRef.current,
+            label: `${scoreRef.current} Points! (${Math.max(0, Math.round(scoreRef.current / 10))} hits)`
+        });
+    };
+
+    const autoClaimOnce = () => {
+        if (hasClaimedRef.current) return;
+        hasClaimedRef.current = true;
+        handleComplete();
+    };
+
     const getRandomCenter = (size) => {
         const margin = size;
         return Math.random() * (100 - margin * 2) + margin;
@@ -61,6 +89,8 @@ const FryFlip = ({ onSpinComplete }) => {
         setScore(0);
         setLives(3);
         setCombo(0);
+        setIsResolving(false);
+        hasClaimedRef.current = false;
         setBarPosition(0);
         setDirection(1);
         setPerfectZoneSize(20);
@@ -70,7 +100,9 @@ const FryFlip = ({ onSpinComplete }) => {
     };
 
     const handleFlip = () => {
-        if (gameState !== 'playing') return;
+        if (gameState !== 'playing' || isResolvingRef.current) return;
+
+        setIsResolving(true);
 
         const perfectZoneStart = targetCenter - perfectZoneSize / 2;
         const perfectZoneEnd = targetCenter + perfectZoneSize / 2;
@@ -78,6 +110,10 @@ const FryFlip = ({ onSpinComplete }) => {
         const goodZoneEnd = targetCenter + perfectZoneSize;
 
         let result = 'miss';
+        let nextZoneSize = perfectZoneSize;
+        let shouldEnd = false;
+        let nextLives = lives;
+
         if (barPosition >= perfectZoneStart && barPosition <= perfectZoneEnd) {
             result = 'perfect';
             setCombo(prev => prev + 1);
@@ -89,48 +125,45 @@ const FryFlip = ({ onSpinComplete }) => {
         }
 
         setLastResult(result);
-        setTimeout(() => setLastResult(null), 600);
 
         if (result === 'miss') {
             setCombo(0);
             setStreak(0);
-            setLives(prev => {
-                const next = Math.max(0, prev - 1);
-                if (next === 0) {
-                    setTimeout(() => endGame(), 400);
-                } else {
-                    setTargetCenter(getRandomCenter(perfectZoneSize));
-                }
-                return next;
-            });
-            return;
+            nextLives = Math.max(0, lives - 1);
+            setLives(nextLives);
+            shouldEnd = nextLives === 0;
+        } else {
+            const newStreak = streak + 1;
+            setStreak(newStreak);
+            setScore(prev => prev + 10);
+
+            if (newStreak % 3 === 0) {
+                nextZoneSize = Math.max(8, perfectZoneSize - 2);
+                setPerfectZoneSize(nextZoneSize);
+                setSpeed(prev => Math.min(5, prev + 0.3));
+            }
         }
 
-        const newStreak = streak + 1;
-        setStreak(newStreak);
-        setScore(prev => prev + 10);
+        const RESOLVE_DELAY_MS = 650;
+        setTimeout(() => {
+            setLastResult(null);
 
-        let nextZoneSize = perfectZoneSize;
-        if (newStreak % 3 === 0) {
-            nextZoneSize = Math.max(8, perfectZoneSize - 2);
-            setPerfectZoneSize(nextZoneSize);
-            setSpeed(prev => Math.min(5, prev + 0.3));
-        }
+            if (shouldEnd) {
+                setIsResolving(false);
+                endGame();
+                return;
+            }
 
-        setTargetCenter(getRandomCenter(nextZoneSize));
+            setTargetCenter(getRandomCenter(nextZoneSize));
+            setIsResolving(false);
+        }, RESOLVE_DELAY_MS);
     };
 
     const endGame = () => {
         if (gameState === 'finished') return;
+        autoClaimOnce();
         setGameState('finished');
         if (animationRef.current) cancelAnimationFrame(animationRef.current);
-        setTimeout(() => {
-            onSpinComplete({
-                type: 'points',
-                value: scoreRef.current,
-                label: `${scoreRef.current} Points! (${Math.max(0, Math.round(scoreRef.current / 10))} hits)`
-            });
-        }, 1000);
     };
 
     const perfectZoneStart = targetCenter - perfectZoneSize / 2;
@@ -138,171 +171,129 @@ const FryFlip = ({ onSpinComplete }) => {
     const isInPerfectZone = barPosition >= perfectZoneStart && barPosition <= perfectZoneEnd;
 
     return (
-        <div className="flex flex-col items-center justify-center p-3 sm:p-6 min-h-[550px]">
-            {gameState === 'ready' && (
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="text-center px-4"
-                >
-                    <h2 className="text-2xl sm:text-3xl font-bold text-brand-text mb-3 sm:mb-4">Fry Flip!</h2>
-                    <p className="text-sm sm:text-base text-gray-600 mb-2">Tap when the bar hits the green zone</p>
-                    <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">You have 3 lives — keep flipping!</p>
-                    <button
-                        onClick={startGame}
-                        className="bg-brand-yellow text-white font-bold py-3 sm:py-4 px-8 sm:px-12 rounded-full shadow-xl hover:bg-yellow-500 transition-all active:scale-95 text-sm sm:text-base"
-                    >
-                        START FLIPPING
-                    </button>
-                </motion.div>
-            )}
+        <GameWrapper title="Fry Flip!">
+            {/* Start Screen */}
+            <GameOverlay
+                isVisible={gameState === 'ready'}
+                title="Fry Flip!"
+                subtitle="Tap when the bar hits the green zone. You have 3 lives!"
+                icon={Flame}
+                onPrimaryAction={startGame}
+                primaryActionText="START FLIPPING"
+            />
 
-            {gameState === 'playing' && (
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="w-full max-w-md px-2"
-                >
-                    {/* Stats */}
-                    <div className="flex gap-3 sm:gap-4 mb-4 sm:mb-6 justify-center flex-wrap">
-                        <div className="bg-white px-4 sm:px-7 py-3 rounded-2xl shadow-md border border-orange-100">
-                            <div className="text-xs sm:text-sm text-gray-500">Streak</div>
-                            <div className="font-bold text-xl sm:text-2xl text-brand-yellow">{streak} 🔥</div>
+            {/* Game Over Screen */}
+            <GameOverlay
+                isVisible={gameState === 'finished'}
+                type="gameover"
+                title={streak >= 20 ? 'Amazing!' : streak >= 10 ? 'Great Job!' : 'Good Try!'}
+                subtitle={`Streak: ${streak} 🔥`}
+                score={score}
+                icon={Flame}
+                onPrimaryAction={startGame}
+                primaryActionText="Play Again"
+            />
+
+            {/* Game UI */}
+            <GameHeader
+                stats={[
+                    { label: 'Streak', value: `${streak} 🔥`, color: 'brand-yellow' },
+                    { label: 'Lives', value: `${lives} ❤️`, color: 'brand-red' },
+                    { label: 'Score', value: score, color: 'green' },
+                    { label: 'Combo', value: combo > 0 ? `${combo}x` : '—', color: 'green' }
+                ]}
+            />
+
+            <div className="w-full max-w-md mx-auto px-2">
+                {/* Timing Bar */}
+                <div className="mb-6 sm:mb-8">
+                    <div className="relative h-20 sm:h-24 bg-gray-200 rounded-2xl sm:rounded-3xl overflow-hidden shadow-inner border-4 border-white">
+                        {/* Good Zone */}
+                        <div
+                            className="absolute top-0 h-full bg-yellow-200/80"
+                            style={{
+                                left: `${targetCenter - perfectZoneSize}%`,
+                                width: `${perfectZoneSize * 2}%`
+                            }}
+                        />
+
+                        {/* Perfect Zone */}
+                        <div
+                            className="absolute top-0 h-full bg-green-400"
+                            style={{
+                                left: `${targetCenter - perfectZoneSize / 2}%`,
+                                width: `${perfectZoneSize}%`
+                            }}
+                        >
+                            <div className="h-full flex items-center justify-center text-white font-bold text-xs sm:text-sm drop-shadow">
+                                PERFECT
+                            </div>
                         </div>
-                        <div className="bg-white px-4 sm:px-6 py-3 rounded-2xl shadow-md border border-red-100 flex items-center gap-2">
-                            <div className="text-xs sm:text-sm text-gray-500">Lives</div>
-                            <div className="font-bold text-xl sm:text-2xl text-brand-red">{lives} ❤️</div>
-                        </div>
-                        <div className="bg-white px-4 sm:px-6 py-3 rounded-2xl shadow-md border border-green-100 flex items-center gap-2">
-                            <div className="text-xs sm:text-sm text-gray-500">Score</div>
-                            <div className="font-bold text-xl sm:text-2xl text-green-600">{score}</div>
-                        </div>
-                        {combo > 0 && (
+
+                        {/* Moving Bar */}
+                        <motion.div
+                            className="absolute top-0 h-full w-1.5 bg-brand-red shadow-lg z-10"
+                            style={{ left: `${barPosition}%` }}
+                            animate={{
+                                boxShadow: isInPerfectZone
+                                    ? '0 0 15px rgba(239, 68, 68, 0.8)'
+                                    : '0 0 8px rgba(239, 68, 68, 0.4)'
+                            }}
+                        />
+                    </div>
+                </div>
+
+                {/* Fry Animation */}
+                <div className="text-center mb-8 relative h-28 flex items-center justify-center">
+                    <motion.div
+                        className="text-7xl inline-block"
+                        animate={{ rotateY: [0, 180, 360] }}
+                        transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                    >
+                        🍟
+                    </motion.div>
+
+                    {/* Feedback */}
+                    <AnimatePresence>
+                        {lastResult && (
                             <motion.div
-                                initial={{ scale: 0 }}
-                                animate={{ scale: 1 }}
-                                className="bg-green-100 px-4 sm:px-6 py-3 rounded-2xl shadow-md border border-green-200"
+                                initial={{ scale: 0, y: 0 }}
+                                animate={{ scale: 1, y: -40 }}
+                                exit={{ scale: 0, opacity: 0 }}
+                                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none whitespace-nowrap z-20"
                             >
-                                <div className="text-xs sm:text-sm text-green-700 font-semibold">Combo</div>
-                                <div className="font-bold text-xl sm:text-2xl text-green-600">{combo}x</div>
+                                {lastResult === 'perfect' && (
+                                    <div className="text-green-500 text-4xl font-black drop-shadow-xl border-white text-stroke-2">
+                                        ⭐ PERFECT!
+                                    </div>
+                                )}
+                                {lastResult === 'good' && (
+                                    <div className="text-yellow-500 text-3xl font-black drop-shadow-xl">
+                                        ✓ GOOD!
+                                    </div>
+                                )}
+                                {lastResult === 'miss' && (
+                                    <div className="text-red-500 text-3xl font-black drop-shadow-xl">
+                                        ✗ MISS!
+                                    </div>
+                                )}
                             </motion.div>
                         )}
-                    </div>
+                    </AnimatePresence>
+                </div>
 
-                    {/* Timing Bar */}
-                    <div className="mb-6 sm:mb-8">
-                        <div className="relative h-20 sm:h-24 bg-gray-200 rounded-2xl sm:rounded-3xl overflow-hidden shadow-inner border-2 sm:border-4 border-white">
-                            {/* Good Zone */}
-                            <div
-                                className="absolute top-0 h-full bg-yellow-200"
-                                style={{
-                                    left: `${targetCenter - perfectZoneSize}%`,
-                                    width: `${perfectZoneSize * 2}%`
-                                }}
-                            />
-
-                            {/* Perfect Zone */}
-                            <div
-                                className="absolute top-0 h-full bg-green-400"
-                                style={{
-                                    left: `${targetCenter - perfectZoneSize / 2}%`,
-                                    width: `${perfectZoneSize}%`
-                                }}
-                            >
-                                <div className="h-full flex items-center justify-center text-white font-bold text-xs sm:text-sm drop-shadow">
-                                    PERFECT
-                                </div>
-                            </div>
-
-                            {/* Moving Bar */}
-                            <motion.div
-                                className="absolute top-0 h-full w-1 sm:w-1.5 bg-brand-red shadow-lg"
-                                style={{ left: `${barPosition}%` }}
-                                animate={{
-                                    boxShadow: isInPerfectZone
-                                        ? '0 0 15px rgba(239, 68, 68, 0.8)'
-                                        : '0 0 8px rgba(239, 68, 68, 0.4)'
-                                }}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Fry Animation */}
-                    <div className="text-center mb-6 sm:mb-8 relative h-24 sm:h-28">
-                        <motion.div
-                            className="text-6xl sm:text-7xl inline-block"
-                            animate={{ rotateY: [0, 180, 360] }}
-                            transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-                        >
-                            🍟
-                        </motion.div>
-
-                        {/* Feedback */}
-                        <AnimatePresence>
-                            {lastResult && (
-                                <motion.div
-                                    initial={{ scale: 0, y: 0 }}
-                                    animate={{ scale: 1, y: -10 }}
-                                    exit={{ scale: 0, opacity: 0 }}
-                                    className="absolute top-0 left-1/2 -translate-x-1/2"
-                                >
-                                    {lastResult === 'perfect' && (
-                                        <div className="text-green-500 text-3xl sm:text-4xl font-black drop-shadow-lg">
-                                            ⭐ PERFECT!
-                                        </div>
-                                    )}
-                                    {lastResult === 'good' && (
-                                        <div className="text-yellow-500 text-2xl sm:text-3xl font-black drop-shadow-lg">
-                                            ✓ GOOD!
-                                        </div>
-                                    )}
-                                    {lastResult === 'miss' && (
-                                        <div className="text-red-500 text-2xl sm:text-3xl font-black drop-shadow-lg">
-                                            ✗ MISS!
-                                        </div>
-                                    )}
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </div>
-
-                    {/* Flip Button */}
-                    <button
-                        onClick={handleFlip}
-                        className="w-full bg-brand-red text-white font-bold py-4 sm:py-5 px-8 rounded-full shadow-xl hover:bg-red-600 transition-all text-lg sm:text-xl active:scale-95 touch-manipulation"
-                    >
-                        FLIP!
-                    </button>
-                </motion.div>
-            )}
-
-            {gameState === 'finished' && (
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="text-center px-4"
+                {/* Flip Button */}
+                <GameButton
+                    onClick={handleFlip}
+                    fullWidth
+                    size="xl"
+                    disabled={gameState !== 'playing' || isResolving}
+                    className="active:bg-red-700 shadow-2xl"
                 >
-                    <div className="text-5xl sm:text-6xl mb-4">
-                        {streak >= 20 ? '🏆' : streak >= 10 ? '🎉' : '👍'}
-                    </div>
-                    <h2 className="text-2xl sm:text-3xl font-bold text-brand-text mb-3 sm:mb-4">
-                        {streak >= 20 ? 'Amazing!' : streak >= 10 ? 'Great Job!' : 'Good Try!'}
-                    </h2>
-                    <div className="text-lg sm:text-xl text-gray-600 mb-2 sm:mb-3">
-                        Score: <span className="font-bold text-green-600">{score}</span>
-                    </div>
-                    <div className="text-base sm:text-lg text-gray-500 mb-4 sm:mb-6">
-                        Lives used: <span className="font-semibold text-brand-red">{3 - lives}</span>
-                    </div>
-                    <button
-                        onClick={startGame}
-                        className="bg-brand-yellow text-white font-bold py-3 sm:py-4 px-8 sm:px-12 rounded-full shadow-xl hover:bg-yellow-500 transition-all active:scale-95 text-sm sm:text-base"
-                    >
-                        Play again
-                    </button>
-                </motion.div>
-            )}
-        </div>
+                    FLIP!
+                </GameButton>
+            </div>
+        </GameWrapper>
     );
 };
 

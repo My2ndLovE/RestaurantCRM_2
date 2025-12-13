@@ -9,8 +9,8 @@ import SauceSprint from '../components/feature/SauceSprint';
 import TriviaBite from '../components/feature/TriviaBite';
 import SuccessAnimation from '../components/feature/SuccessAnimation';
 import successData from '../assets/lottie/success.json';
-import { motion } from 'framer-motion';
-import { ChevronLeft, Trophy, Dices, Gift, Zap, Brain, Timer, Package, Flame, CircleDollarSign } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Trophy, Dices, Gift, Zap, Brain, Timer, Package, Flame, CircleDollarSign, ChevronLeft } from 'lucide-react';
 import Leaderboard from '../components/feature/Leaderboard';
 import CoinDropPlinko from '../components/feature/CoinDropPlinko';
 
@@ -37,6 +37,10 @@ const Game = () => {
         }
     }, [selectedGame]);
 
+    const handleBack = () => {
+        setSelectedGame(null);
+    };
+
     const handleGameComplete = (result) => {
         setTimeout(() => {
             setPrize(result);
@@ -44,119 +48,88 @@ const Game = () => {
     };
 
     return (
-        <div className="min-h-screen bg-brand-bg pb-24">
-            {!selectedGame ? (
-                <div className="p-6 pt-12">
-                    <h1 className="text-3xl font-bold text-brand-text mb-2">Arcade</h1>
-                    <p className="text-gray-500 mb-8">Play games to earn extra rewards!</p>
+        <div className={`min-h-screen bg-gray-50 ${selectedGame ? 'pb-32' : 'pb-24'}`}>
+            <AnimatePresence mode="wait">
+                {!selectedGame ? (
+                    <motion.div
+                        key="menu"
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        className="p-4 sm:p-6 pt-8 sm:pt-12 max-w-4xl mx-auto"
+                    >
+                        <header className="mb-8">
+                            <h1 className="text-3xl sm:text-4xl font-black text-brand-text mb-2">Arcade</h1>
+                            <p className="text-gray-500 font-medium">Play mini-games to earn extra rewards!</p>
+                        </header>
 
-                    <div className="space-y-4 mb-8">
-                        {GAMES.map((game) => (
-                            <motion.div
-                                key={game.id}
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
-                                onClick={() => !game.comingSoon && setSelectedGame(game.id)}
-                                className={`relative overflow-hidden rounded-2xl p-6 shadow-lg cursor-pointer ${game.comingSoon ? 'opacity-80 grayscale' : ''} ${game.color}`}
-                            >
-                                <div className="relative z-10 flex justify-between items-center text-white">
-                                    <div>
-                                        <h3 className="text-2xl font-bold mb-1">{game.name}</h3>
-                                        <p className="text-white/80 text-sm">{game.description}</p>
+                        <div className="space-y-4 mb-12">
+                            {GAMES.map((game) => (
+                                <motion.div
+                                    key={game.id}
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    onClick={() => !game.comingSoon && setSelectedGame(game.id)}
+                                    className={`relative overflow-hidden rounded-3xl p-6 shadow-lg cursor-pointer transition-all ${game.comingSoon ? 'opacity-80 grayscale' : ''} ${game.color}`}
+                                >
+                                    <div className="relative z-10 flex justify-between items-center text-white">
+                                        <div>
+                                            <div className="flex items-center gap-3 mb-1">
+                                                <h3 className="text-xl sm:text-2xl font-black">{game.name}</h3>
+                                                {game.id === 'wheel' && (
+                                                    <span className="bg-white text-[10px] font-bold text-brand-text px-2 py-0.5 rounded-full shadow-sm uppercase tracking-wide">
+                                                        Popular
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-white/90 text-sm font-medium">{game.description}</p>
+                                        </div>
+                                        <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-sm shrink-0 ml-4">
+                                            <game.icon size={28} className="text-white" />
+                                        </div>
                                     </div>
-                                    <div className="bg-white/20 p-3 rounded-full backdrop-blur-sm">
-                                        <game.icon size={32} />
-                                    </div>
-                                </div>
-                                {game.comingSoon && (
-                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-20">
-                                        <span className="bg-white text-black font-bold px-3 py-1 rounded-full text-xs uppercase tracking-wider">Coming Soon</span>
-                                    </div>
-                                )}
-                                {/* Decorative circles */}
-                                <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
-                            </motion.div>
-                        ))}
-                    </div>
 
-                    {/* Leaderboard Section */}
-                    <Leaderboard />
-                </div>
-            ) : (
-                <div className="h-full">
-                    <div className="p-4 flex items-center">
-                        <button
-                            onClick={() => setSelectedGame(null)}
-                            className="p-2 bg-white rounded-full shadow-sm hover:bg-gray-50"
-                        >
-                            <ChevronLeft size={24} className="text-brand-text" />
-                        </button>
-                        <span className="ml-4 font-bold text-lg text-brand-text">Back to Arcade</span>
-                    </div>
+                                    {/* Decorative elements */}
+                                    <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
+                                </motion.div>
+                            ))}
+                        </div>
 
-                    {selectedGame === 'wheel' && (
-                        <div className="p-4 text-center">
-                            <div className="bg-white rounded-3xl p-4 shadow-sm mb-6 inline-block px-6">
-                                <span className="text-sm text-gray-400 uppercase font-bold tracking-wider">Your Tokens</span>
-                                <div className="text-2xl font-bold text-brand-red">3 Available</div>
+                        {/* Leaderboard Section */}
+                        <Leaderboard />
+                    </motion.div>
+                ) : (
+                    <motion.div
+                        key="game"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 20 }}
+                        className="h-full pt-4"
+                    >
+                        <div className="max-w-4xl mx-auto">
+                            <div className="px-4 mb-4 flex items-center">
+                                <button
+                                    onClick={() => setSelectedGame(null)}
+                                    className="p-2 bg-white rounded-full shadow-sm hover:bg-gray-50 text-brand-text transition-colors border border-gray-100"
+                                >
+                                    <ChevronLeft size={24} />
+                                </button>
+                                <span className="ml-4 font-bold text-lg text-brand-text">Back to Arcade</span>
                             </div>
-                            <WheelGame onSpinComplete={handleGameComplete} />
-                        </div>
-                    )}
 
-                    {selectedGame === 'scratch' && (
-                        <div className="p-4 text-center flex flex-col items-center">
-                            <div className="mb-6 text-center">
-                                <h2 className="text-2xl font-bold text-brand-text">Lucky Scratch</h2>
-                                <p className="text-gray-500">Scratch the card to reveal your prize!</p>
-                            </div>
-                            <ScratchCard onComplete={handleGameComplete} />
+                            {selectedGame === 'wheel' && <WheelGame onSpinComplete={handleGameComplete} />}
+                            {selectedGame === 'scratch' && <ScratchCard onComplete={handleGameComplete} />}
+                            {selectedGame === 'shuffle' && <SauceShuffle onSpinComplete={handleGameComplete} />}
+                            {selectedGame === 'catch' && <NuggetPopCatch onSpinComplete={handleGameComplete} />}
+                            {selectedGame === 'plinko' && <CoinDropPlinko onSpinComplete={handleGameComplete} />}
+                            {selectedGame === 'combo' && <ComboBuilder onSpinComplete={handleGameComplete} />}
+                            {selectedGame === 'flip' && <FryFlip onSpinComplete={handleGameComplete} />}
+                            {selectedGame === 'sprint' && <SauceSprint onSpinComplete={handleGameComplete} />}
+                            {selectedGame === 'trivia' && <TriviaBite onSpinComplete={handleGameComplete} />}
                         </div>
-                    )}
-
-                    {selectedGame === 'shuffle' && (
-                        <div className="p-4">
-                            <SauceShuffle onSpinComplete={handleGameComplete} />
-                        </div>
-                    )}
-
-                    {selectedGame === 'catch' && (
-                        <div className="p-4">
-                            <NuggetPopCatch onSpinComplete={handleGameComplete} />
-                        </div>
-                    )}
-
-                    {selectedGame === 'plinko' && (
-                        <div className="p-4">
-                            <CoinDropPlinko onSpinComplete={handleGameComplete} />
-                        </div>
-                    )}
-
-                    {selectedGame === 'combo' && (
-                        <div className="p-4">
-                            <ComboBuilder onSpinComplete={handleGameComplete} />
-                        </div>
-                    )}
-
-                    {selectedGame === 'flip' && (
-                        <div className="p-4">
-                            <FryFlip onSpinComplete={handleGameComplete} />
-                        </div>
-                    )}
-
-                    {selectedGame === 'sprint' && (
-                        <div className="p-4">
-                            <SauceSprint onSpinComplete={handleGameComplete} />
-                        </div>
-                    )}
-
-                    {selectedGame === 'trivia' && (
-                        <div className="p-4">
-                            <TriviaBite onSpinComplete={handleGameComplete} />
-                        </div>
-                    )}
-                </div>
-            )}
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {prize && (
                 <SuccessAnimation

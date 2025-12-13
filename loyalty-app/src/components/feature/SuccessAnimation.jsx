@@ -9,7 +9,6 @@ const SuccessAnimation = ({ animationData, message, subMessage, onComplete }) =>
                     <Lottie
                         animationData={animationData}
                         loop={false}
-                        onComplete={onComplete}
                         autoPlay={true}
                     />
                 </div>
@@ -19,7 +18,7 @@ const SuccessAnimation = ({ animationData, message, subMessage, onComplete }) =>
                     onClick={onComplete}
                     className="w-full bg-brand-red text-white font-bold py-3 px-6 rounded-xl hover:bg-brand-red/90 transition-colors"
                 >
-                    Awesome!
+                    CLAIM
                 </button>
             </div>
         </div>

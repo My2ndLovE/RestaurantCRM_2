@@ -1,14 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Coins, Sparkles } from 'lucide-react';
+import { Coins, Sparkles, CircleDollarSign } from 'lucide-react';
 import happyPotatoBall from '../../assets/images/happypotato/happypotato-ball.png';
+import GameWrapper from '../game-ui/GameWrapper';
+import GameHeader from '../game-ui/GameHeader';
+import GameOverlay from '../game-ui/GameOverlay';
 
 const COINS_PER_RUN = 6;
-const MOVE_SPEED = 60; // pixels per second
-const BOARD_WIDTH = 100; // percentage
-const BALL_SIZE = 48; // pixels
+const MOVE_SPEED = 60;
+const BOARD_WIDTH = 100;
+const BALL_SIZE = 48;
 
-// Ordered payouts left-to-right: -20, +20, -10, +10, -10, +20, -20
 const SLOTS = [
     { id: 'm20l', label: '-20', color: 'bg-red-100', accent: '#ef4444', reward: { type: 'points', value: -20, label: '-20 Points' } },
     { id: 'p20l', label: '+20', color: 'bg-emerald-100', accent: '#10b981', reward: { type: 'points', value: 20, label: '+20 Points' } },
@@ -31,9 +33,10 @@ const FINAL_REWARDS = [
 ];
 
 const CoinDropPlinko = ({ onSpinComplete }) => {
+    const [hasStarted, setHasStarted] = useState(false);
     const [coinsLeft, setCoinsLeft] = useState(COINS_PER_RUN);
     const [totals, setTotals] = useState({ slotHits: 0 });
-    const [status, setStatus] = useState('ready'); // ready | dropping | summary
+    const [status, setStatus] = useState('intro');
     const [ballPos, setBallPos] = useState({ x: 50, y: 8, rotation: 0 });
     const [activeSlot, setActiveSlot] = useState(null);
     const [currentReward, setCurrentReward] = useState(null);
@@ -71,6 +74,31 @@ const CoinDropPlinko = ({ onSpinComplete }) => {
         return FINAL_REWARDS[0];
     };
 
+    const pegRows = useMemo(() => {
+        const dots = [];
+        const ROWS_Y = [20, 32, 44, 56, 68, 80];
+        ROWS_Y.forEach((y, idx) => {
+            const count = idx % 2 === 0 ? 8 : 7;
+            const spacing = BOARD_WIDTH / (count + 1);
+            for (let i = 1; i <= count; i++) {
+                dots.push({ x: spacing * i, y });
+            }
+        });
+        return dots;
+    }, []);
+
+    const finalizeRun = useCallback(() => {
+        if (hasClaimedRef.current) return;
+        const reward = rollFinalReward();
+        setFinalReward(reward);
+        hasClaimedRef.current = true;
+        onSpinComplete?.({
+            type: reward.value > 0 ? 'points' : 'loss',
+            value: reward.value,
+            label: reward.label
+        });
+    }, [onSpinComplete]);
+
     const finishDrop = (landingX) => {
         const slotIdx = findSlotIndex(landingX);
         const slot = SLOTS[slotIdx];
@@ -80,9 +108,11 @@ const CoinDropPlinko = ({ onSpinComplete }) => {
 
         setCoinsLeft((prev) => {
             const next = Math.max(0, prev - 1);
-            const nextStatus = next === 0 ? 'summary' : 'ready';
-            setStatus(nextStatus);
-            if (next > 0) {
+            if (next === 0) {
+                finalizeRun();
+                setStatus('summary');
+            } else {
+                setStatus('ready');
                 setTimeout(spawnBall, 800);
             }
             return next;
@@ -107,7 +137,8 @@ const CoinDropPlinko = ({ onSpinComplete }) => {
     };
 
     useEffect(() => {
-        spawnBall();
+        if (!hasStarted) return;
+        lastFrameRef.current = null;
 
         const step = (now) => {
             if (!lastFrameRef.current) lastFrameRef.current = now;
@@ -142,7 +173,6 @@ const CoinDropPlinko = ({ onSpinComplete }) => {
 
                 p.vx *= friction;
 
-                // Check collision with pegs
                 const ballRadius = 2.5;
                 for (const peg of pegRows) {
                     const dx = p.x - peg.x;
@@ -196,17 +226,28 @@ const CoinDropPlinko = ({ onSpinComplete }) => {
         return () => {
             if (animRef.current) cancelAnimationFrame(animRef.current);
         };
-    }, []);
+    }, [hasStarted, pegRows]);
 
     const handleDrop = () => {
-        // Prevent double-click and only allow drop when ready
-        if (status !== 'ready' || coinsLeft <= 0 || physicsRef.current.released) return;
+        if (!hasStarted || status !== 'ready' || coinsLeft <= 0 || physicsRef.current.released) return;
 
         const p = physicsRef.current;
         p.released = true;
         p.vx = p.direction * 2;
         p.vy = 0;
         setStatus('dropping');
+    };
+
+    const startGame = () => {
+        setHasStarted(true);
+        setCoinsLeft(COINS_PER_RUN);
+        setTotals({ slotHits: 0 });
+        setStatus('ready');
+        setActiveSlot(null);
+        setCurrentReward(null);
+        setFinalReward(null);
+        hasClaimedRef.current = false;
+        spawnBall();
     };
 
     const resetGame = () => {
@@ -220,53 +261,38 @@ const CoinDropPlinko = ({ onSpinComplete }) => {
         spawnBall();
     };
 
-    const claimRewards = useCallback(() => {
-        if (hasClaimedRef.current) return;
-        const reward = rollFinalReward();
-        setFinalReward(reward);
-        hasClaimedRef.current = true;
-        onSpinComplete?.({ type: reward.value > 0 ? 'points' : 'loss', value: reward.value, label: reward.label });
-    }, [onSpinComplete]);
-
-    useEffect(() => {
-        if (status === 'summary') {
-            claimRewards();
-        }
-    }, [status, claimRewards]);
-
-    const pegRows = useMemo(() => {
-        const dots = [];
-        const ROWS_Y = [20, 32, 44, 56, 68, 80];
-        ROWS_Y.forEach((y, idx) => {
-            const count = idx % 2 === 0 ? 8 : 7;
-            const spacing = BOARD_WIDTH / (count + 1);
-            for (let i = 1; i <= count; i++) {
-                dots.push({ x: spacing * i, y });
-            }
-        });
-        return dots;
-    }, []);
-
     return (
-        <div className="flex flex-col gap-3 sm:gap-4 items-center px-2 sm:px-3 pb-8 sm:pb-16">
-            <div className="w-full max-w-md bg-gradient-to-br from-orange-50 via-white to-amber-50 border border-amber-100 shadow-xl rounded-3xl p-3 sm:p-4">
-                {/* Header */}
-                <div className="flex items-center gap-3 mb-3">
-                    <div className="bg-amber-100 text-amber-700 p-2.5 sm:p-3 rounded-2xl shadow-inner">
-                        <Coins size={20} className="sm:w-6 sm:h-6" />
-                    </div>
-                    <div className="flex-1">
-                        <h2 className="text-lg sm:text-xl font-black text-brand-text">Coin Drop Plinko</h2>
-                        <p className="text-[10px] sm:text-xs text-gray-500">Tap to release. Let gravity decide.</p>
-                    </div>
-                    <div className="text-right">
-                        <div className="text-xl sm:text-2xl font-black text-brand-text">{coinsLeft}/{COINS_PER_RUN}</div>
-                        <div className="text-[9px] sm:text-[10px] text-gray-400">coins left</div>
-                    </div>
-                </div>
+        <GameWrapper title="Coin Drop Plinko">
+            <GameOverlay
+                isVisible={!hasStarted}
+                title="Coin Drop Plinko"
+                subtitle="Tap to release each coin and rack up points."
+                icon={Coins}
+                onPrimaryAction={startGame}
+                primaryActionText="START DROP"
+            />
 
+            {/* Summary Overlay */}
+            <GameOverlay
+                isVisible={status === 'summary'}
+                type="gameover"
+                title="All coins dropped!"
+                subtitle={`Wins: ${totals.slotHits}`}
+                score={finalReward ? finalReward.value : 0}
+                icon={CircleDollarSign}
+                onPrimaryAction={resetGame}
+                primaryActionText="Play Again"
+            />
+
+            <GameHeader
+                stats={[
+                    { label: 'Coins', value: `${coinsLeft}/${COINS_PER_RUN}`, color: 'brand-yellow' }
+                ]}
+            />
+
+            <div className="flex flex-col gap-4 items-center px-2 pb-8">
                 {/* Game Board */}
-                <div className="relative w-full h-[340px] sm:h-[420px] bg-gradient-to-b from-blue-50 to-purple-50 rounded-2xl sm:rounded-3xl border-2 sm:border-4 border-white overflow-hidden shadow-2xl mb-3">
+                <div className="relative w-full max-w-md h-[min(340px,45svh)] sm:h-[420px] bg-gradient-to-b from-blue-50 to-purple-50 rounded-2xl sm:rounded-3xl border-4 border-white overflow-hidden shadow-2xl mb-3">
                     {/* Pegs */}
                     {pegRows.map((peg, idx) => (
                         <div
@@ -351,35 +377,8 @@ const CoinDropPlinko = ({ onSpinComplete }) => {
                         </motion.div>
                     )}
                 </AnimatePresence>
-
-                {/* Summary */}
-                {status === 'summary' && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="bg-white border border-emerald-100 shadow-xl rounded-2xl p-4 sm:p-5"
-                    >
-                        <div className="text-center mb-3 sm:mb-4">
-                            <div className="text-3xl sm:text-4xl mb-2">🎉</div>
-                            <h3 className="text-lg sm:text-xl font-black text-brand-text mb-1">All coins dropped!</h3>
-                            <p className="text-xs sm:text-sm text-gray-600">Wins: <span className="font-bold text-emerald-600">{totals.slotHits}</span></p>
-                        </div>
-                        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center mb-3">
-                            <div className="text-xs sm:text-sm text-emerald-700 font-semibold">Reward auto-claimed</div>
-                            <div className="text-sm sm:text-base font-black text-brand-text">
-                                {finalReward ? finalReward.label : 'Calculating...'}
-                            </div>
-                        </div>
-                        <button
-                            onClick={resetGame}
-                            className="w-full px-3 sm:px-4 py-2 sm:py-2.5 rounded-full border border-slate-200 text-xs sm:text-sm font-semibold text-brand-text bg-white hover:bg-slate-50 active:scale-95 transition-all"
-                        >
-                            Play again
-                        </button>
-                    </motion.div>
-                )}
             </div>
-        </div>
+        </GameWrapper>
     );
 };
 

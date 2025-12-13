@@ -1,10 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import happyPotatoChar from '../../assets/images/happypotato/happypotato-char.png';
+import GameWrapper from '../game-ui/GameWrapper';
+import GameHeader from '../game-ui/GameHeader';
+import GameOverlay from '../game-ui/GameOverlay';
+import GameButton from '../game-ui/GameButton';
+import { Zap } from 'lucide-react';
 
 const LANES = 3;
-const COLLECTIBLES = ['🍟', '🍗', '🍔', '🌭', '🥓', '🧀']; // Food items to collect
-const OBSTACLES = ['🔥']; // Fire to avoid
+const COLLECTIBLES = ['🍟', '🍗', '🍔', '🌭', '🥓', '🧀'];
+const OBSTACLES = ['🔥'];
 const GAME_DURATION = 45;
 
 const SauceSprint = ({ onSpinComplete }) => {
@@ -27,6 +32,7 @@ const SauceSprint = ({ onSpinComplete }) => {
     const playerLaneRef = useRef(1);
     const gameAreaRef = useRef(null);
     const touchStartRef = useRef(null);
+    const hasClaimedRef = useRef(false);
 
     useEffect(() => {
         scoreRef.current = score;
@@ -45,7 +51,6 @@ const SauceSprint = ({ onSpinComplete }) => {
     };
 
     const getLaneXPosition = (lane) => {
-        // Calculate exact center of each lane
         const laneWidth = 100 / LANES;
         return laneWidth * lane + laneWidth / 2;
     };
@@ -80,8 +85,7 @@ const SauceSprint = ({ onSpinComplete }) => {
             const next = [];
             prev.forEach(item => {
                 const newY = item.y + delta * item.speed;
-
-                // Collision detection at 80% height
+                // Collision detection
                 if (newY >= 80 && newY <= 85 && !item.collected) {
                     if (item.lane === playerLaneRef.current) {
                         item.collected = true;
@@ -89,10 +93,7 @@ const SauceSprint = ({ onSpinComplete }) => {
                         return;
                     }
                 }
-
-                // Remove if past bottom
                 if (newY >= 105) return;
-
                 next.push({ ...item, y: newY });
             });
             return next;
@@ -155,15 +156,8 @@ const SauceSprint = ({ onSpinComplete }) => {
     };
 
     const handleTouchMove = (e) => {
-        if (gameState !== 'playing' || !gameAreaRef.current) return;
-        const touch = e.changedTouches?.[0];
-        if (!touch) return;
-        if (e.cancelable) e.preventDefault();
-        const rect = gameAreaRef.current.getBoundingClientRect();
-        const relativeX = touch.clientX - rect.left;
-        const laneWidth = rect.width / LANES;
-        const lane = Math.floor(relativeX / laneWidth);
-        changeLane(lane);
+        if (gameState !== 'playing') return;
+        // Optional: Continuous tracking logic could go here
     };
 
     const startGame = () => {
@@ -175,6 +169,7 @@ const SauceSprint = ({ onSpinComplete }) => {
         setDistance(0);
         setScorePopups([]);
         setFlash(null);
+        hasClaimedRef.current = false;
         scoreRef.current = 0;
         distanceRef.current = 0;
         playerLaneRef.current = 1;
@@ -200,211 +195,191 @@ const SauceSprint = ({ onSpinComplete }) => {
         loopRef.current = requestAnimationFrame(loop);
     };
 
+    const handleComplete = () => {
+        const finalScore = scoreRef.current + Math.floor(distanceRef.current / 2);
+        onSpinComplete({
+            type: 'points',
+            value: finalScore,
+            label: `${finalScore} Points! (${distanceRef.current}m)`
+        });
+    };
+
+    const autoClaimOnce = () => {
+        if (hasClaimedRef.current) return;
+        hasClaimedRef.current = true;
+        handleComplete();
+    };
+
     const endGame = () => {
         stopAll();
+        autoClaimOnce();
         setGameState('finished');
-        const finalScore = scoreRef.current + Math.floor(distanceRef.current / 2);
-        setTimeout(() => {
-            onSpinComplete({
-                type: 'points',
-                value: finalScore,
-                label: `${finalScore} Points! (${distanceRef.current}m)`
-            });
-        }, 600);
     };
 
     return (
-        <div className="flex flex-col items-center justify-center p-3 sm:p-6 min-h-[550px]">
-            {gameState === 'ready' && (
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="text-center px-4"
+        <GameWrapper title="Sauce Sprint!">
+            <GameOverlay
+                isVisible={gameState === 'ready'}
+                title="Sauce Sprint!"
+                subtitle="Switch lanes to collect food 🍟 and avoid fire 🔥!"
+                icon={Zap}
+                onPrimaryAction={startGame}
+                primaryActionText="START SPRINT"
+            />
+
+            <GameOverlay
+                isVisible={gameState === 'finished'}
+                type="gameover"
+                title="Sprint Complete!"
+                score={score}
+                subtitle={`Distance: ${distance}m`}
+                icon={Zap}
+                onPrimaryAction={startGame}
+                primaryActionText="Play Again"
+            />
+
+            <GameHeader
+                stats={[
+                    { label: 'Score', value: score, color: 'brand-red' },
+                    { label: 'Distance', value: `${distance}m`, color: 'brand-yellow' },
+                ]}
+            />
+
+            <div className="w-full max-w-md mx-auto px-2">
+                <div
+                    ref={gameAreaRef}
+                    onTouchStart={handleTouchStart}
+                    onTouchEnd={handleTouchEnd}
+                    onTouchMove={handleTouchMove}
+                    className="relative w-full h-[min(420px,52svh)] sm:h-[500px] bg-gradient-to-b from-gray-700 via-gray-800 to-gray-900 rounded-2xl sm:rounded-3xl overflow-hidden shadow-xl border-4 border-white"
+                    style={{ touchAction: 'none' }}
                 >
-                    <h2 className="text-xl sm:text-2xl font-bold text-brand-text mb-3 sm:mb-4">Sauce Sprint!</h2>
-                    <p className="text-sm sm:text-base text-gray-600 mb-2">Switch lanes to collect food 🍟</p>
-                    <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">Avoid the fire! 🔥</p>
-                    <button
-                        onClick={startGame}
-                        className="bg-brand-red text-white font-bold py-3 sm:py-4 px-8 sm:px-12 rounded-full shadow-xl hover:bg-red-600 transition-all active:scale-95 text-sm sm:text-base"
-                    >
-                        START SPRINT
-                    </button>
-                </motion.div>
-            )}
+                    <AnimatePresence>
+                        {flash && (
+                            <motion.div
+                                key={flash.key}
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 0.3 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.15 }}
+                                className={`absolute inset-0 pointer-events-none ${flash.type === 'good' ? 'bg-green-400' : 'bg-red-500'}`}
+                            />
+                        )}
+                    </AnimatePresence>
 
-            {gameState === 'playing' && (
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="w-full max-w-md px-2"
-                >
-                    <div className="flex gap-2 sm:gap-4 mb-3 sm:mb-4 justify-center">
-                        <div className="bg-white px-3 sm:px-6 py-2 sm:py-3 rounded-full shadow-md">
-                            <span className="text-xs sm:text-sm text-gray-500">Score: </span>
-                            <span className="font-bold text-lg sm:text-xl text-brand-red">{score}</span>
-                        </div>
-                        <div className="bg-white px-3 sm:px-6 py-2 sm:py-3 rounded-full shadow-md">
-                            <span className="text-xs sm:text-sm text-gray-500">Distance: </span>
-                            <span className="font-bold text-lg sm:text-xl text-brand-yellow">{distance}m</span>
-                        </div>
-                    </div>
-
-                    <div
-                        ref={gameAreaRef}
-                        onTouchStart={handleTouchStart}
-                        onTouchEnd={handleTouchEnd}
-                        onTouchMove={handleTouchMove}
-                        className="relative w-full h-[420px] sm:h-[500px] bg-gradient-to-b from-gray-700 via-gray-800 to-gray-900 rounded-2xl sm:rounded-3xl overflow-hidden shadow-xl border-2 sm:border-4 border-white"
-                        style={{ touchAction: 'none' }}
-                    >
-                        {/* Flash */}
-                        <AnimatePresence>
-                            {flash && (
-                                <motion.div
-                                    key={flash.key}
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 0.3 }}
-                                    exit={{ opacity: 0 }}
-                                    transition={{ duration: 0.15 }}
-                                    className={`absolute inset-0 pointer-events-none ${flash.type === 'good' ? 'bg-green-400' : 'bg-red-500'}`}
-                                />
-                            )}
-                        </AnimatePresence>
-
-                        {/* Lane markers */}
-                        <div className="absolute inset-0 flex">
-                            {[0, 1, 2].map(lane => (
-                                <div
-                                    key={lane}
-                                    className="flex-1 flex items-center justify-center border-r border-white/10 last:border-r-0"
-                                >
-                                    <div className="text-white/5 text-6xl font-bold">{lane + 1}</div>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Road animation */}
-                        <div className="absolute inset-0">
-                            {[0, 1, 2].map(lane => (
-                                <motion.div
-                                    key={`road-${lane}`}
-                                    className="absolute w-1 bg-yellow-400/30"
-                                    style={{
-                                        left: `${getLaneXPosition(lane)}%`,
-                                        height: '100%'
-                                    }}
-                                    animate={{
-                                        backgroundPosition: ['0% 0%', '0% 100%']
-                                    }}
-                                    transition={{
-                                        duration: 1.5,
-                                        repeat: Infinity,
-                                        ease: 'linear'
-                                    }}
-                                />
-                            ))}
-                        </div>
-
-                        {/* Items */}
-                        {items.map(item => (
+                    {/* Lane markers */}
+                    <div className="absolute inset-0 flex">
+                        {[0, 1, 2].map(lane => (
                             <div
-                                key={item.id}
-                                className="absolute text-3xl sm:text-4xl drop-shadow-lg transition-opacity duration-200"
-                                style={{
-                                    left: `${getLaneXPosition(item.lane)}%`,
-                                    top: `${item.y}%`,
-                                    transform: 'translate(-50%, -50%)',
-                                    opacity: item.collected ? 0 : 1
-                                }}
+                                key={lane}
+                                className="flex-1 flex items-center justify-center border-r border-white/10 last:border-r-0"
                             >
-                                {item.emoji}
+                                <div className="text-white/5 text-6xl font-bold">{lane + 1}</div>
                             </div>
                         ))}
+                    </div>
 
-                        {/* Score popups */}
-                        <AnimatePresence>
-                            {scorePopups.map(popup => (
-                                <motion.div
-                                    key={popup.id}
-                                    initial={{ y: 0, opacity: 1, scale: 0.8 }}
-                                    animate={{ y: -50, opacity: 0, scale: 1.3 }}
-                                    exit={{ opacity: 0 }}
-                                    transition={{ duration: 0.7 }}
-                                    className={`absolute text-2xl sm:text-3xl font-black pointer-events-none ${popup.isGood ? 'text-green-400' : 'text-red-400'}`}
-                                    style={{
-                                        left: `${getLaneXPosition(popup.lane)}%`,
-                                        top: '80%',
-                                        transform: 'translateX(-50%)'
-                                    }}
-                                >
-                                    {popup.text}
-                                </motion.div>
-                            ))}
-                        </AnimatePresence>
+                    {/* Road animation */}
+                    <div className="absolute inset-0">
+                        {[0, 1, 2].map(lane => (
+                            <motion.div
+                                key={`road-${lane}`}
+                                className="absolute w-1 bg-yellow-400/30"
+                                style={{
+                                    left: `${getLaneXPosition(lane)}%`,
+                                    height: '100%'
+                                }}
+                                animate={{
+                                    backgroundPosition: ['0% 0%', '0% 100%']
+                                }}
+                                transition={{
+                                    duration: 1.5,
+                                    repeat: Infinity,
+                                    ease: 'linear'
+                                }}
+                            />
+                        ))}
+                    </div>
 
-                        {/* Player */}
-                        <motion.div
-                            className="absolute z-10"
-                            animate={{
-                                left: `${getLaneXPosition(playerLane)}%`,
-                            }}
-                            transition={{ type: 'tween', duration: 0.08, ease: 'linear' }}
+                    {/* Items */}
+                    {items.map(item => (
+                        <div
+                            key={item.id}
+                            className="absolute text-4xl drop-shadow-lg transition-opacity duration-200"
                             style={{
-                                top: '80%',
+                                left: `${getLaneXPosition(item.lane)}%`,
+                                top: `${item.y}%`,
                                 transform: 'translate(-50%, -50%)',
+                                opacity: item.collected ? 0 : 1
                             }}
                         >
-                            <div className="w-16 sm:w-20 drop-shadow-2xl">
-                                <img
-                                    src={happyPotatoChar}
-                                    alt="Happy Potato runner"
-                                    className="w-full h-auto select-none pointer-events-none"
-                                    style={{ aspectRatio: '225 / 251' }}
-                                    draggable={false}
-                                />
-                            </div>
-                        </motion.div>
-                    </div>
+                            {item.emoji}
+                        </div>
+                    ))}
 
-                    <div className="flex gap-2 sm:gap-4 mt-4 sm:mt-6 justify-center">
-                        <button
-                            onClick={() => changeLane(playerLane - 1)}
-                            disabled={playerLane === 0}
-                            className="bg-white text-brand-text font-bold py-3 px-6 sm:px-8 rounded-full shadow-lg disabled:opacity-30 hover:bg-gray-100 transition-all active:scale-95 text-sm sm:text-base touch-manipulation"
-                        >
-                            ← LEFT
-                        </button>
-                        <button
-                            onClick={() => changeLane(playerLane + 1)}
-                            disabled={playerLane === LANES - 1}
-                            className="bg-white text-brand-text font-bold py-3 px-6 sm:px-8 rounded-full shadow-lg disabled:opacity-30 hover:bg-gray-100 transition-all active:scale-95 text-sm sm:text-base touch-manipulation"
-                        >
-                            RIGHT →
-                        </button>
-                    </div>
-                </motion.div>
-            )}
+                    <AnimatePresence>
+                        {scorePopups.map(popup => (
+                            <motion.div
+                                key={popup.id}
+                                initial={{ y: 0, opacity: 1, scale: 0.8 }}
+                                animate={{ y: -50, opacity: 0, scale: 1.3 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.7 }}
+                                className={`absolute text-3xl font-black pointer-events-none ${popup.isGood ? 'text-green-400' : 'text-red-400'}`}
+                                style={{
+                                    left: `${getLaneXPosition(popup.lane)}%`,
+                                    top: '80%',
+                                    transform: 'translateX(-50%)'
+                                }}
+                            >
+                                {popup.text}
+                            </motion.div>
+                        ))}
+                    </AnimatePresence>
 
-            {gameState === 'finished' && (
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="text-center px-4"
-                >
-                    <div className="text-5xl sm:text-6xl mb-4">🏁</div>
-                    <h2 className="text-2xl sm:text-3xl font-bold text-brand-text mb-3 sm:mb-4">Sprint Complete!</h2>
-                    <p className="text-lg sm:text-xl text-gray-600 mb-2">Distance: <span className="font-bold text-brand-yellow">{distance}m</span></p>
-                    <p className="text-lg sm:text-xl text-gray-600 mb-4 sm:mb-6">Score: <span className="font-bold text-brand-red">{score}</span></p>
-                    <button
-                        onClick={startGame}
-                        className="bg-brand-red text-white font-bold py-3 sm:py-4 px-8 sm:px-12 rounded-full shadow-xl hover:bg-red-600 transition-all active:scale-95 text-sm sm:text-base"
+                    {/* Player */}
+                    <motion.div
+                        className="absolute z-10"
+                        animate={{
+                            left: `${getLaneXPosition(playerLane)}%`,
+                        }}
+                        transition={{ type: 'tween', duration: 0.08, ease: 'linear' }}
+                        style={{
+                            top: '80%',
+                            transform: 'translate(-50%, -50%)',
+                        }}
                     >
-                        Play again
-                    </button>
-                </motion.div>
-            )}
-        </div>
+                        <div className="w-20 drop-shadow-2xl">
+                            <img
+                                src={happyPotatoChar}
+                                alt="Happy Potato runner"
+                                className="w-full h-auto select-none pointer-events-none"
+                                draggable={false}
+                            />
+                        </div>
+                    </motion.div>
+                </div>
+
+                <div className="flex gap-4 mt-6 justify-center">
+                    <GameButton
+                        onClick={() => changeLane(playerLane - 1)}
+                        disabled={playerLane === 0}
+                        variant="neutral"
+                        size="md"
+                    >
+                        ← LEFT
+                    </GameButton>
+                    <GameButton
+                        onClick={() => changeLane(playerLane + 1)}
+                        disabled={playerLane === LANES - 1}
+                        variant="neutral"
+                        size="md"
+                    >
+                        RIGHT →
+                    </GameButton>
+                </div>
+            </div>
+        </GameWrapper>
     );
 };
 
